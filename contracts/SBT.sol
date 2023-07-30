@@ -1,87 +1,211 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
-/**
- * following Vitalik's
- * co-authored whitepaper at:
- * https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4105763
- *
- */
+abstract contract AccessControl {
+    address public owner;
 
-contract SBT {
-    struct Soul {
-        string identity;
-        // add issuer specific fields below
-        string url;
-        uint256 score;
-        uint256 timestamp;
+    enum Roles {
+        Admin,
+        regular
     }
 
-    mapping(address => Soul) private souls;
-    mapping(address => mapping(address => Soul)) soulProfiles;
+    mapping(Roles => mapping(address => bool)) public accountToRole;
+    event UpdateUserRole(address _user, Roles _role);
+    event DeleteUserRole(address _user, Roles _role);
+
+    // We also can and should call our update role on the constructor and pass in
+    // msg.sender and the uint 0 - to make ourselves admins from the start.
+    constructor() {
+        owner = msg.sender; 
+        updateRoles(msg.sender, 0);
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Function reserved for only owner!");
+        _;
+    }
+
+    modifier onlyAuthorised(address _student) {
+        require(
+            msg.sender == owner ||
+                accountToRole[Roles.Admin][msg.sender] == true,
+            "You're not authorised to call this function!"
+        );
+
+        _;
+    }
+
+    function updateRoles(address _user, uint256 _role) public onlyOwner {
+        Roles role;
+        _role == 0 ? role = Roles.Admin : role = Roles.regular;
+        // Roles role = Roles.Admin;
+        accountToRole[role][_user] = true;
+        emit UpdateUserRole(_user, role);
+    }
+
+    function deleteRole(address _user, uint256 _role) public onlyOwner {
+        Roles role;
+        _role == 0 ? role = Roles.Admin : role = Roles.regular;
+        delete accountToRole[role][_user];
+        emit DeleteUserRole(_user, role);
+    }
+
+}
+
+contract DecentralisedIdentityManagement is AccessControl {
+
+    struct Student {
+        string name;
+        uint regNo;
+        string department;
+        uint timestamp; 
+    }
+
+    struct StudentDoc {
+        string name;
+        uint regNo;
+        string department;
+        string docName;
+        string docHash;
+        uint timestamp; 
+    }
+
+    mapping(address => Student) private students;
+    mapping(uint256 => mapping(address => StudentDoc)) public studentProfiles;
     mapping(address => address[]) private profiles;
+
+    mapping(address => bool) public Approved;
+
+    uint256 public studentCount;
+    mapping(address => uint) public studentProfileCount;
+
 
     string public name;
     string public ticker;
-    address public operator;
-    bytes32 private zeroHash =
-        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+    
+    uint256[] public regNumbers;
+    bytes32 private nullRegNoHash = 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563;
+    bytes32 private zeroHash = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
-    event Mint(address _soul);
-    event Burn(address _soul);
-    event Update(address _soul);
-    event SetProfile(address _profiler, address _soul);
-    event RemoveProfile(address _profiler, address _soul);
+    event Mint(address _student);
+    event Burn(address _student);
+    event Update(address _student);
+    event SetProfile(uint256 profileID, address _student);
+    event RemoveProfile(uint256 profileID, address _student);
+    event StudentApproved(address STUDENT);
 
-    constructor(string memory _name, string memory _ticker) {
-        name = _name;
-        ticker = _ticker;
-        operator = msg.sender;
+    constructor() {
+        name = "Decentralised Identity Management";
+        ticker = "DIM";
     }
 
-    function mint(address _soul, Soul memory _soulData) external {
+    function approve(address _studentAddress) external onlyOwner {
+        Approved[_studentAddress] = true;
+        updateRoles(_studentAddress, 0);
+        emit StudentApproved(_studentAddress);
+    }
+
+    function revokeApprove(address _studentAddress) external onlyOwner {
+        Approved[_studentAddress] = false;
+        deleteRole(_studentAddress, 0);
+        emit StudentApproved(_studentAddress);
+    }
+
+    function batchApprove(address[] memory _students) external onlyOwner {
+        for (uint i=0; i<_students.length; i++){
+            address person = _students[i];
+            Approved[person] = true;
+            updateRoles(person,0);
+            emit StudentApproved(person);
+        }
+    
+    }
+
+    function mint(address _student, string memory _name, uint256 _regNo, string memory _department ) external onlyAuthorised(msg.sender) {
         require(
-            keccak256(bytes(souls[_soul].identity)) == zeroHash,
-            "Soul already exists"
+            keccak256(abi.encodePacked(students[_student].regNo)) == nullRegNoHash,
+            "Student already exists"
         );
-        require(msg.sender == operator, "Only operator can mint new souls");
-        souls[_soul] = _soulData;
-        emit Mint(_soul);
+        uint _time = block.timestamp;
+        students[_student] = Student(_name, _regNo, _department, _time);
+        studentCount +=1;
+        regNumbers.push(_regNo);
+        emit Mint(_student);
     }
 
-    function burn(address _soul) external {
+    function burn(address _student) external {
         require(
-            msg.sender == _soul || msg.sender == operator,
+            msg.sender == _student || msg.sender == owner,
             "Only users and issuers have rights to delete their data"
         );
-        delete souls[_soul];
-        for (uint i = 0; i < profiles[_soul].length; i++) {
-            address profiler = profiles[_soul][i];
-            delete soulProfiles[profiler][_soul];
+        delete students[_student];
+        delete profiles[_student];
+        for (uint i = 0; i <= studentProfileCount[_student]; i++) {
+            delete studentProfiles[i][_student];
         }
-        emit Burn(_soul);
+        emit Burn(_student);
     }
 
-    function update(address _soul, Soul memory _soulData) external {
-        require(msg.sender == operator, "Only operator can update soul data");
+    function update(address _student, string calldata _name, uint256 _regNo, string calldata _department) external {
         require(
-            keccak256(bytes(souls[_soul].identity)) != zeroHash,
-            "Soul does not exist"
+            msg.sender == _student || msg.sender == owner,
+            "Only users and issuers have rights to update their data"
         );
-        souls[_soul] = _soulData;
-        emit Update(_soul);
+
+        require(
+            keccak256(abi.encodePacked(students[_student].regNo)) != nullRegNoHash,
+            "Student does not exist"
+        );
+        
+        Student storage _person = students[_student];
+        _person.name = _name;
+        _person.regNo = _regNo;
+        _person.department = _department;
+        emit Update(_student);
     }
 
-    function hasSoul(address _soul) external view returns (bool) {
-        if (keccak256(bytes(souls[_soul].identity)) == zeroHash) {
+    function hasStudent(address _student) external view returns (bool) {
+        if (keccak256(bytes(students[_student].name)) == zeroHash) {
             return false;
         } else {
             return true;
         }
     }
 
-    function getSoul(address _soul) external view returns (Soul memory) {
-        return souls[_soul];
+    function Lookr(address _student) external view returns (bytes32) {
+        return (keccak256(bytes(students[_student].name)));
+    }
+
+    function Lookr111(address _student) external view returns (string memory) {
+        return ((students[_student].name));
+    }
+
+    function Lookr222(address _student) external view returns (bytes32) {
+        return (keccak256(abi.encodePacked(students[_student].name)));
+    }
+
+    function getr(address _student) external view returns (bool) {
+        if (keccak256(abi.encodePacked(students[_student].regNo)) == nullRegNoHash){
+            return true;
+
+      } else {
+          return false;
+      }
+    }
+
+    function getr22(address _student) external view returns (uint) {
+        return students[_student].regNo;
+    }
+
+    function getr33() external view returns (bool) {
+        if (keccak256(abi.encodePacked(uint256(0))) == nullRegNoHash){
+            return true;
+        } else {
+            return false;
+        }
+    }
+    function getStudent(address _student) external view returns (Student memory) {
+        return students[_student];
     }
 
     /**
@@ -89,35 +213,41 @@ contract SBT {
      * Data is stored in a nested mapping relative to msg.sender
      * By default they can only store data on addresses that have been minted
      */
-    function setProfile(address _soul, Soul memory _soulData) external {
+    function createProfile(address _student, string memory _name, uint256 _regNo, string memory _department ,string memory _docName, string memory _docHash ) external {
         require(
-            keccak256(bytes(souls[_soul].identity)) != zeroHash,
-            "Cannot create a profile for a soul that has not been minted"
+            msg.sender == _student || msg.sender == owner,
+            "Only users and issuers have right to create profiles"
         );
-        soulProfiles[msg.sender][_soul] = _soulData;
-        profiles[_soul].push(msg.sender);
-        emit SetProfile(msg.sender, _soul);
+        require(
+            keccak256(abi.encodePacked(students[_student].regNo)) != nullRegNoHash,
+            "Cannot create a profile for a student that has not been minted"
+        );
+        uint _time = block.timestamp;
+        studentProfiles[studentProfileCount[_student]][_student] = StudentDoc(_name, _regNo, _department,_docName , _docHash, _time);
+        profiles[_student].push(msg.sender);
+        studentProfileCount[_student] = studentProfileCount[_student] + 1;
+        emit SetProfile(studentProfileCount[_student], _student);
     }
 
     function getProfile(
-        address _profiler,
-        address _soul
-    ) external view returns (Soul memory) {
-        return soulProfiles[_profiler][_soul];
+        uint _profileID,
+        address _student
+    ) external view returns (StudentDoc memory) {
+        return studentProfiles[_profileID][_student];
     }
 
     function listProfiles(
-        address _soul
+        address _student
     ) external view returns (address[] memory) {
-        return profiles[_soul];
+        return profiles[_student];
     }
 
     function hasProfile(
-        address _profiler,
-        address _soul
+        uint _profileID,
+        address _student
     ) public view returns (bool) {
         if (
-            keccak256(bytes(soulProfiles[_profiler][_soul].identity)) ==
+            keccak256(bytes(studentProfiles[_profileID][_student].name)) ==
             zeroHash
         ) {
             return false;
@@ -126,13 +256,13 @@ contract SBT {
         }
     }
 
-    function removeProfile(address _profiler, address _soul) external {
+    function removeProfile( uint _profileID, address _student) external {
         require(
-            msg.sender == _soul,
+            msg.sender == _student,
             "Only users have rights to delete their profile data"
         );
-        require(hasProfile(_profiler, _soul), "Profile does not exist");
-        delete soulProfiles[_profiler][msg.sender];
-        emit RemoveProfile(_profiler, _soul);
+        require(hasProfile( _profileID, _student), "Profile does not exist");
+        delete studentProfiles[ _profileID][msg.sender];
+        emit RemoveProfile(_profileID, _student);
     }
 }

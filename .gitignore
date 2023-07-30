@@ -135,3 +135,5 @@ typechain
 #Hardhat files
 cache
 artifacts
+
+/test
