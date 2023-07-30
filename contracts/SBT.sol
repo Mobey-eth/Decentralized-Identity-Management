@@ -16,7 +16,7 @@ abstract contract AccessControl {
     // We also can and should call our update role on the constructor and pass in
     // msg.sender and the uint 0 - to make ourselves admins from the start.
     constructor() {
-        owner = msg.sender; 
+        owner = msg.sender;
         updateRoles(msg.sender, 0);
     }
 
@@ -49,16 +49,14 @@ abstract contract AccessControl {
         delete accountToRole[role][_user];
         emit DeleteUserRole(_user, role);
     }
-
 }
 
 contract DecentralisedIdentityManagement is AccessControl {
-
     struct Student {
         string name;
         uint regNo;
         string department;
-        uint timestamp; 
+        uint timestamp;
     }
 
     struct StudentDoc {
@@ -67,7 +65,7 @@ contract DecentralisedIdentityManagement is AccessControl {
         string department;
         string docName;
         string docHash;
-        uint timestamp; 
+        uint timestamp;
     }
 
     mapping(address => Student) private students;
@@ -79,13 +77,14 @@ contract DecentralisedIdentityManagement is AccessControl {
     uint256 public studentCount;
     mapping(address => uint) public studentProfileCount;
 
-
     string public name;
     string public ticker;
-    
+
     uint256[] public regNumbers;
-    bytes32 private nullRegNoHash = 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563;
-    bytes32 private zeroHash = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+    bytes32 private nullRegNoHash =
+        0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563;
+    bytes32 private zeroHash =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
     event Mint(address _student);
     event Burn(address _student);
@@ -112,23 +111,28 @@ contract DecentralisedIdentityManagement is AccessControl {
     }
 
     function batchApprove(address[] memory _students) external onlyOwner {
-        for (uint i=0; i<_students.length; i++){
+        for (uint i = 0; i < _students.length; i++) {
             address person = _students[i];
             Approved[person] = true;
-            updateRoles(person,0);
+            updateRoles(person, 0);
             emit StudentApproved(person);
         }
-    
     }
 
-    function mint(address _student, string memory _name, uint256 _regNo, string memory _department ) external onlyAuthorised(msg.sender) {
+    function mint(
+        address _student,
+        string memory _name,
+        uint256 _regNo,
+        string memory _department
+    ) external onlyAuthorised(msg.sender) {
         require(
-            keccak256(abi.encodePacked(students[_student].regNo)) == nullRegNoHash,
+            keccak256(abi.encodePacked(students[_student].regNo)) ==
+                nullRegNoHash,
             "Student already exists"
         );
         uint _time = block.timestamp;
         students[_student] = Student(_name, _regNo, _department, _time);
-        studentCount +=1;
+        studentCount += 1;
         regNumbers.push(_regNo);
         emit Mint(_student);
     }
@@ -146,17 +150,23 @@ contract DecentralisedIdentityManagement is AccessControl {
         emit Burn(_student);
     }
 
-    function update(address _student, string calldata _name, uint256 _regNo, string calldata _department) external {
+    function update(
+        address _student,
+        string calldata _name,
+        uint256 _regNo,
+        string calldata _department
+    ) external {
         require(
             msg.sender == _student || msg.sender == owner,
             "Only users and issuers have rights to update their data"
         );
 
         require(
-            keccak256(abi.encodePacked(students[_student].regNo)) != nullRegNoHash,
+            keccak256(abi.encodePacked(students[_student].regNo)) !=
+                nullRegNoHash,
             "Student does not exist"
         );
-        
+
         Student storage _person = students[_student];
         _person.name = _name;
         _person.regNo = _regNo;
@@ -172,39 +182,9 @@ contract DecentralisedIdentityManagement is AccessControl {
         }
     }
 
-    function Lookr(address _student) external view returns (bytes32) {
-        return (keccak256(bytes(students[_student].name)));
-    }
-
-    function Lookr111(address _student) external view returns (string memory) {
-        return ((students[_student].name));
-    }
-
-    function Lookr222(address _student) external view returns (bytes32) {
-        return (keccak256(abi.encodePacked(students[_student].name)));
-    }
-
-    function getr(address _student) external view returns (bool) {
-        if (keccak256(abi.encodePacked(students[_student].regNo)) == nullRegNoHash){
-            return true;
-
-      } else {
-          return false;
-      }
-    }
-
-    function getr22(address _student) external view returns (uint) {
-        return students[_student].regNo;
-    }
-
-    function getr33() external view returns (bool) {
-        if (keccak256(abi.encodePacked(uint256(0))) == nullRegNoHash){
-            return true;
-        } else {
-            return false;
-        }
-    }
-    function getStudent(address _student) external view returns (Student memory) {
+    function getStudent(
+        address _student
+    ) external view returns (Student memory) {
         return students[_student];
     }
 
@@ -213,17 +193,32 @@ contract DecentralisedIdentityManagement is AccessControl {
      * Data is stored in a nested mapping relative to msg.sender
      * By default they can only store data on addresses that have been minted
      */
-    function createProfile(address _student, string memory _name, uint256 _regNo, string memory _department ,string memory _docName, string memory _docHash ) external {
+    function createProfile(
+        address _student,
+        string memory _name,
+        uint256 _regNo,
+        string memory _department,
+        string memory _docName,
+        string memory _docHash
+    ) external {
         require(
             msg.sender == _student || msg.sender == owner,
             "Only users and issuers have right to create profiles"
         );
         require(
-            keccak256(abi.encodePacked(students[_student].regNo)) != nullRegNoHash,
+            keccak256(abi.encodePacked(students[_student].regNo)) !=
+                nullRegNoHash,
             "Cannot create a profile for a student that has not been minted"
         );
         uint _time = block.timestamp;
-        studentProfiles[studentProfileCount[_student]][_student] = StudentDoc(_name, _regNo, _department,_docName , _docHash, _time);
+        studentProfiles[studentProfileCount[_student]][_student] = StudentDoc(
+            _name,
+            _regNo,
+            _department,
+            _docName,
+            _docHash,
+            _time
+        );
         profiles[_student].push(msg.sender);
         studentProfileCount[_student] = studentProfileCount[_student] + 1;
         emit SetProfile(studentProfileCount[_student], _student);
@@ -256,13 +251,13 @@ contract DecentralisedIdentityManagement is AccessControl {
         }
     }
 
-    function removeProfile( uint _profileID, address _student) external {
+    function removeProfile(uint _profileID, address _student) external {
         require(
             msg.sender == _student,
             "Only users have rights to delete their profile data"
         );
-        require(hasProfile( _profileID, _student), "Profile does not exist");
-        delete studentProfiles[ _profileID][msg.sender];
+        require(hasProfile(_profileID, _student), "Profile does not exist");
+        delete studentProfiles[_profileID][msg.sender];
         emit RemoveProfile(_profileID, _student);
     }
 }
