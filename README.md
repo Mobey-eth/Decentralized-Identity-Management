@@ -1,6 +1,6 @@
 # Soulbound Token (SBT in Solidity)
 
-### ASoulbound Token (SBT) Implementation for Decentralized Identity Management
+### A Soulbound Token (SBT) Implementation for Decentralized Identity Management
 
 Blog post and video about SBT's here: https://jamesbachini.com/souldbound-token/
 
