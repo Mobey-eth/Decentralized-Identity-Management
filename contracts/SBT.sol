@@ -113,7 +113,7 @@ contract DecentralisedIdentityManagement is AccessControl {
         emit StudentRevoked(_studentAddress);
     }
 
-    function approveDeleteforStudentId(
+    function approveDeleteforStudentProfile(
         address _studentAddress
     ) external onlyOwner {
         approvedToDelete[_studentAddress] = true;
