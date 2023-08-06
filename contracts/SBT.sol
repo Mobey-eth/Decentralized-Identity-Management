@@ -232,8 +232,8 @@ contract DecentralisedIdentityManagement is AccessControl {
             _time
         );
         profiles[_student].push(msg.sender);
-        studentProfileCount[_student] = studentProfileCount[_student] + 1;
         emit SetProfile(studentProfileCount[_student], _student);
+        studentProfileCount[_student] = studentProfileCount[_student] + 1;
     }
 
     function getProfile(
