@@ -136,11 +136,11 @@ contract DecentralisedIdentityManagement is AccessControl {
     }
 
     function mint(
-        address _student,
         string memory _name,
         uint256 _regNo,
         string memory _department
     ) external onlyAuthorised(msg.sender) {
+        address _student = msg.sender;
         require(
             keccak256(abi.encodePacked(students[_student].regNo)) ==
                 nullRegNoHash,
@@ -211,9 +211,6 @@ contract DecentralisedIdentityManagement is AccessControl {
      */
     function createProfile(
         address _student,
-        string memory _name,
-        uint256 _regNo,
-        string memory _department,
         string memory _docName,
         string memory _docHash
     ) external {
@@ -227,6 +224,10 @@ contract DecentralisedIdentityManagement is AccessControl {
             "Cannot create a profile for a student that has not been minted"
         );
         uint _time = block.timestamp;
+        Student memory variable = students[_student];
+        string memory _name = variable.name;
+        uint256 _regNo = variable.regNo;
+        string memory _department = variable.department;
         studentProfiles[studentProfileCount[_student]][_student] = StudentDoc(
             _name,
             _regNo,
