@@ -73,6 +73,7 @@ contract DecentralisedIdentityManagement is AccessControl {
     mapping(address => address[]) private profiles;
 
     mapping(address => bool) public Approved;
+    mapping(address => bool) public approvedToDelete;
 
     uint256 public studentCount;
     mapping(address => uint) public studentProfileCount;
@@ -80,7 +81,7 @@ contract DecentralisedIdentityManagement is AccessControl {
     string public name;
     string public ticker;
 
-    uint256[] public regNumbers;
+    uint256[] private regNumbers;
     bytes32 private nullRegNoHash =
         0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563;
     bytes32 private zeroHash =
@@ -92,6 +93,8 @@ contract DecentralisedIdentityManagement is AccessControl {
     event SetProfile(uint256 profileID, address _student);
     event RemoveProfile(uint256 profileID, address _student);
     event StudentApproved(address STUDENT);
+    event StudentRevoked(address STUDENT);
+    event StudentApprovedToDelete(address STUDENT);
 
     constructor() {
         name = "Decentralised Identity Management";
@@ -107,7 +110,16 @@ contract DecentralisedIdentityManagement is AccessControl {
     function revokeApprove(address _studentAddress) external onlyOwner {
         Approved[_studentAddress] = false;
         deleteRole(_studentAddress, 0);
-        emit StudentApproved(_studentAddress);
+        emit StudentRevoked(_studentAddress);
+    }
+
+    function approveDelete(address _studentAddress) external onlyOwner {
+        approvedToDelete[_studentAddress] = true;
+        emit StudentApprovedToDelete(_studentAddress);
+    }
+
+    function revokeApproveDelete(address _studentAddress) external onlyOwner {
+        approvedToDelete[_studentAddress] = false;
     }
 
     function batchApprove(address[] memory _students) external onlyOwner {
@@ -184,7 +196,7 @@ contract DecentralisedIdentityManagement is AccessControl {
 
     function getStudent(
         address _student
-    ) external view returns (Student memory) {
+    ) external view onlyOwner returns (Student memory) {
         return students[_student];
     }
 
@@ -255,6 +267,10 @@ contract DecentralisedIdentityManagement is AccessControl {
         require(
             msg.sender == _student,
             "Only users have rights to delete their profile data"
+        );
+        require(
+            approvedToDelete[_student] == true,
+            "Student needs admin approval to delete a profile"
         );
         require(hasProfile(_profileID, _student), "Profile does not exist");
         delete studentProfiles[_profileID][msg.sender];
